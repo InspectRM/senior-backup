@@ -41,7 +41,7 @@ int main() {
         } else{
             printf("[%d] <-- parent\n", getpid());
             wait(NULL);
-            printf("Done!\n\n");  // Added feedback
+            printf("Done!\n\n");  
         } 
     }
     
