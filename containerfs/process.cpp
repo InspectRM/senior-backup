@@ -1,6 +1,8 @@
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include <sched.h>
 #include <string.h>
 
 int main() {
@@ -17,21 +19,30 @@ int main() {
         pid_t pid = fork();
         
         if (pid == 0) {
-            // Child: run the command
-            printf("[Child %d] Running: %s\n", getpid(), cmd);
-            
-            char *args[] = {cmd, NULL};
-            execvp(cmd, args);
-            
-            // Only runs if exec fails
-            printf("Command failed!\n");
-            return 1;
-        } else {
-            // Parent: wait for child
-            printf("[Parent %d] Waiting...\n", getpid());
+            unshare(CLONE_NEWPID);
+
+            pid_t inner_pid = fork();
+
+            if (inner_pid == 0){
+                printf("([%d] <-- Child PID inside container) RUNNING: %s\n", getpid(), cmd);
+                if (strcmp(cmd, "bash") == 0) {
+                        char *args[] = {cmd, "-i", NULL};  // -i = interactive
+                        execvp(cmd, args);
+                    } else {
+                        char *args[] = {cmd, NULL};
+                        execvp(cmd, args);
+                    }
+                printf("Error, couldn't execute!\n");
+                return 1;
+            } else{
+                wait(NULL);
+                return 0;
+            }
+        } else{
+            printf("[%d] <-- parent\n", getpid());
             wait(NULL);
-            printf("[Parent] Done!\n\n");
-        }
+            printf("Done!\n\n");  // Added feedback
+        } 
     }
     
     return 0;
