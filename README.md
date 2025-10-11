@@ -44,12 +44,7 @@ Docker Based Conainter Engine: Process, Resource, and Filesystem Isolation
 │ └──────────┘   └──────────┘   └──────────┘   └─────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
-### Installation
-git clone https://github.com/your-username/containeros-engine.git
-cd containeros-engine
-mkdir build && cd build
-cmake ..
-make
+
 
 ### Basic Usage
 # Run a simple container
