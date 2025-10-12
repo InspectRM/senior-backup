@@ -1,3 +1,5 @@
+// pseudo code for DWFS Algorithm
+
 initialize runqueue = empty min-heap (key = vruntime)
 for each container i:
     set weight w_i (e.g. 1024 default), vruntime_i = 0

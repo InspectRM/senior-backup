@@ -32,23 +32,23 @@ Docker Based Conainter Engine: Process, Resource, and Filesystem Isolation
 ┌─────────────────────────────────────────────────────────────┐
 │                     Linux Kernel APIs                       │
 ├─────────────────────────────────────────────────────────────┤
-│ ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌─────────────────┐ │
-│ │Namespaces│   │ Cgroups  │   │ UnionFS  │   │ Netfilter       │ │
-│ │          │   │          │   │          │   │                 │ │
-│ │• PID     │   │• CPU     │   │• Overlay │   │• iptables       │ │
-│ │• Mount   │   │• Memory  │   │• AuFS    │   │• bridge         │ │
-│ │• Network │   │• I/O     │   │• Snapshot│   │• veth pairs     │ │
-│ │• UTS     │   │• Devices │   │          │   │                 │ │
-│ │• IPC     │   │          │   │          │   │                 │ │
-│ │• User    │   │          │   │          │   │                 │ │
-│ └──────────┘   └──────────┘   └──────────┘   └─────────────────┘ │
+│ ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌────────────┐ │
+│ │Namespaces│   │ Cgroups  │   │ UnionFS  │   │ Netfilter  │ │
+│ │          │   │          │   │          │   │            │ │
+│ │• PID     │   │• CPU     │   │• Overlay │   │• iptables  │ │
+│ │• Mount   │   │• Memory  │   │• AuFS    │   │• bridge    │ │
+│ │• Network │   │• I/O     │   │• Snapshot│   │• veth pairs│ │
+│ │• UTS     │   │• Devices │   │          │   │            │ │
+│ │• IPC     │   │          │   │          │   │            │ │
+│ │• User    │   │          │   │          │   │            │ │
+│ └──────────┘   └──────────┘   └──────────┘   └────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 
 ### Basic Usage
 # Run a simple container
-./containeros run ubuntu:latest /bin/bash
+~coming soon~
 
 # Run with resource limits
-./containeros run --memory=100m --cpus=0.5 alpine /bin/sh
+~coming soon~
