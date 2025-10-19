@@ -1,81 +1,88 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <sys/stat.h>
-#include <unistd.h>
 
-using namespace std;
+///  TERMORARELY OUT OF ORDER , NOT NEEDED AT THE MOMENT! ///
+///  TERMORARELY OUT OF ORDER , NOT NEEDED AT THE MOMENT! ///
+///  TERMORARELY OUT OF ORDER , NOT NEEDED AT THE MOMENT! ///
 
-class CgroupManager {
-public:
-    string path;
 
-    // Constructor: create a cgroup directory for this container
-    CgroupManager(const string &name) {
-        path = "/sys/fs/cgroup/" + name;
 
-        if (mkdir(path.c_str(), 0755) == -1 && access(path.c_str(), F_OK) != 0) {
-            perror("[CgroupManager] mkdir");
-        } else {
-            cout << "[CgroupManager] Created: " << path << endl;
-        }
-    }
+// #include <iostream>
+// #include <fstream>
+// #include <string>
+// #include <sys/stat.h>
+// #include <unistd.h>
 
-    // Add process (by PID) to the cgroup
-    bool addProcess(pid_t pid) {
-        string filePath = path + "/cgroup.procs";
-        ofstream file(filePath);
-        if (!file.is_open()) {
-            perror("[CgroupManager] Error opening cgroup.procs");
-            return false;
-        }
-        file << pid;
-        file.close();
-        cout << "[CgroupManager] Added PID " << pid << " to " << filePath << endl;
-        return true;
-    }
+// using namespace std;
 
-    // Limit CPU (percentage-based control)
-    bool limitCPU(int percent) {
-        string filePath = path + "/cpu.max";
-        ofstream file(filePath);
-        if (!file.is_open()) {
-            perror("[CgroupManager] Error opening cpu.max");
-            return false;
-        }
+// class CgroupManager {
+// public:
+//     string path;
 
-        // Format: <max> <period>
-        // e.g., 50% = 50ms out of every 100ms
-        int quota = percent * 1000;   // convert percent to microseconds
-        file << quota << " 100000";
-        file.close();
+//     // Constructor: create a cgroup directory for this container
+//     CgroupManager(const string &name) {
+//         path = "/sys/fs/cgroup/" + name;
 
-        cout << "[CgroupManager] CPU limit set to " << percent << "% for " << path << endl;
-        return true;
-    }
+//         if (mkdir(path.c_str(), 0755) == -1 && access(path.c_str(), F_OK) != 0) {
+//             perror("[CgroupManager] mkdir");
+//         } else {
+//             cout << "[CgroupManager] Created: " << path << endl;
+//         }
+//     }
 
-    // Limit Memory (in bytes)
-    bool limitMemory(size_t bytes) {
-        string filePath = path + "/memory.max";
-        ofstream file(filePath);
-        if (!file.is_open()) {
-            perror("[CgroupManager] Error opening memory.max");
-            return false;
-        }
+//     // Add process (by PID) to the cgroup
+//     bool addProcess(pid_t pid) {
+//         string filePath = path + "/cgroup.procs";
+//         ofstream file(filePath);
+//         if (!file.is_open()) {
+//             perror("[CgroupManager] Error opening cgroup.procs");
+//             return false;
+//         }
+//         file << pid;
+//         file.close();
+//         cout << "[CgroupManager] Added PID " << pid << " to " << filePath << endl;
+//         return true;
+//     }
 
-        file << bytes;
-        file.close();
+//     // Limit CPU (percentage-based control)
+//     bool limitCPU(int percent) {
+//         string filePath = path + "/cpu.max";
+//         ofstream file(filePath);
+//         if (!file.is_open()) {
+//             perror("[CgroupManager] Error opening cpu.max");
+//             return false;
+//         }
 
-        cout << "[CgroupManager] Memory limit set to " << bytes / (1024 * 1024) << " MB for " << path << endl;
-        return true;
-    }
+//         // Format: <max> <period>
+//         // e.g., 50% = 50ms out of every 100ms
+//         int quota = percent * 1000;   // convert percent to microseconds
+//         file << quota << " 100000";
+//         file.close();
 
-    // Remove the cgroup after container exits
-    void cleanup() {
-        if (rmdir(path.c_str()) == -1) {
-            perror("[CgroupManager] Error removing cgroup directory");
-        } else {
-            cout << "[CgroupManager] Cleaned up " << path << endl;
-        }
-    }
-};
+//         cout << "[CgroupManager] CPU limit set to " << percent << "% for " << path << endl;
+//         return true;
+//     }
+
+//     // Limit Memory (in bytes)
+//     bool limitMemory(size_t bytes) {
+//         string filePath = path + "/memory.max";
+//         ofstream file(filePath);
+//         if (!file.is_open()) {
+//             perror("[CgroupManager] Error opening memory.max");
+//             return false;
+//         }
+
+//         file << bytes;
+//         file.close();
+
+//         cout << "[CgroupManager] Memory limit set to " << bytes / (1024 * 1024) << " MB for " << path << endl;
+//         return true;
+//     }
+
+//     // Remove the cgroup after container exits
+//     void cleanup() {
+//         if (rmdir(path.c_str()) == -1) {
+//             perror("[CgroupManager] Error removing cgroup directory");
+//         } else {
+//             cout << "[CgroupManager] Cleaned up " << path << endl;
+//         }
+//     }
+// };

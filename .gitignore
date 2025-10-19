@@ -3,7 +3,6 @@
 *.com
 *.class
 *.dll
-*.exe
 *.o
 *.so
 main
@@ -35,3 +34,12 @@ main
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# build artifacts
+/build/
+/bin/
+*.o
+*.obj
+*.exe
+*.log
+compile_commands.json
