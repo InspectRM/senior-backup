@@ -171,6 +171,7 @@ static int run_and_wait(const string& rootfs_dir, const vector<char*>& argv_cstr
             if (nm_mount_minimal() != 0)                 { cerr << "[!] mount failed\n"; _exit(1); }
             nm_set_hostname("mini-container");
 
+            // execv("/bin/bash", (char* const[]){(char*)"/bin/bash", (char*)nullptr});
             execv(argv_cstrings[0], (char* const*)argv_cstrings.data());
             perror("execv");
             _exit(127);
@@ -215,6 +216,7 @@ int run_program(const string& program_path, const vector<string>& program_args) 
     build_exec_argv(program_inside, program_args, argv_strings, argv_cstrings);
 
     int rc = run_and_wait(rootfs_dir, argv_cstrings);
-    cleanup_run_dir(rootfs_dir, run_dir);
+    //comign back later experimenting /bin/bash
+    // cleanup_run_dir(rootfs_dir, run_dir);
     return rc;
 }
