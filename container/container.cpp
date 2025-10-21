@@ -156,7 +156,7 @@ static void build_exec_argv(const string& program_inside,
     argv_cstrings.push_back(nullptr);
 }
 
-static int run_and_wait(const string& rootfs_dir, const vector<char*>& argv_cstrings) {
+static int run_and_wait(const string& rootfs_dir,const vector<char*>& argv_cstrings,bool interactive){
     pid_t child = fork();
     if (child < 0) { perror("fork"); return 1; }
 
@@ -171,11 +171,17 @@ static int run_and_wait(const string& rootfs_dir, const vector<char*>& argv_cstr
             if (nm_mount_minimal() != 0)                 { cerr << "[!] mount failed\n"; _exit(1); }
             nm_set_hostname("mini-container");
 
-            // execv("/bin/bash", (char* const[]){(char*)"/bin/bash", (char*)nullptr});
-            execv(argv_cstrings[0], (char* const*)argv_cstrings.data());
+            if (interactive) {
+                cout << "[+] Entering interactive container shell...\n";
+                execl("/bin/bash", "/bin/bash", nullptr);
+            } else {
+                execv(argv_cstrings[0], (char* const*)argv_cstrings.data());
+            }
+
             perror("execv");
             _exit(127);
-        } else {
+        }
+        else {
             int st = 0; waitpid(init_pid, &st, 0);
             _exit((WIFEXITED(st) && WEXITSTATUS(st) == 0) ? 0 : 1);
         }
@@ -194,7 +200,7 @@ static void cleanup_run_dir(const string& rootfs_dir, const string& run_dir) {
     cout << "[✓] Done.\n";
 }
 
-int run_program(const string& program_path, const vector<string>& program_args) {
+int run_program(const string& program_path, const vector<string>& program_args, bool interactive){
     if (geteuid() != 0) { cerr << "[!] run as root (sudo)\n"; return 1; }
     if (ensure_base_rootfs() != 0) return 1;
 
@@ -215,8 +221,8 @@ int run_program(const string& program_path, const vector<string>& program_args) 
     vector<char*>  argv_cstrings;
     build_exec_argv(program_inside, program_args, argv_strings, argv_cstrings);
 
-    int rc = run_and_wait(rootfs_dir, argv_cstrings);
+    int rc = run_and_wait(rootfs_dir, argv_cstrings, interactive);
     //comign back later experimenting /bin/bash
-    // cleanup_run_dir(rootfs_dir, run_dir);
+    cleanup_run_dir(rootfs_dir, run_dir);
     return rc;
 }
