@@ -36,7 +36,12 @@ hello
 .Trashes
 ehthumbs.db
 Thumbs.db
-
+# IDE and build files
+.vscode/
+bin/
+*.exe
+*.out
+*.log
 # build artifacts
 /build/
 /bin/
