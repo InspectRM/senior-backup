@@ -20,3 +20,41 @@ loop forever:
         normalize weights (optional)
     update scheduling priority of c (based on new vruntime)
     runqueue.insert(c)
+
+
+// Second Algorithm
+
+function lookup(path):
+  // Check whiteout first
+  if whiteouts.contains(path): return NOT_FOUND
+
+  // Cached?
+  if cache.has(0, path): return cache.get(0, path)
+
+  // Scan layers top -> bottom
+  for i in range(0..L-1):
+    if cache.has(i, path): return cache.get(i, path)
+    meta = layers[i].stat(path)
+    if meta.exists:
+      cache.put(i, path, meta)
+      return meta
+  return NOT_FOUND
+
+function write(path, data):
+  meta = lookup(path)
+  if meta == NOT_FOUND:
+    // Creating new file in upper
+    layers[0].create(path)
+    cache.invalidate(path)
+    return layers[0].write(path, data)
+
+  if meta.layer_id == 0:
+    return layers[0].write(path, data)
+
+  // Need copy-up from lower layer
+  src = layers[meta.layer_id].open(path, READ)
+  layers[0].create(path)
+  dst = layers[0].open(path, WRITE)
+  copy(src, dst)         // O(size(file))
+  cache.invalidate(path)
+  return layers[0].write(path, data)
