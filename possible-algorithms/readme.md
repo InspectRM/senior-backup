@@ -13,3 +13,8 @@ If A ran too long (say 8ms instead of 5), its vruntime would grow more, possibly
 # Complexity Analysis: Let n be the number of containers. 
 
 DWFS keeps containers in a priority queue (e.g. a balanced tree or heap) sorted by vruntime. Insertion or update in a red-black tree (as in Linux CFS) is O(log n), and selecting the next container is O(1) if the minimum is cached. If using a binary heap, both extract-min and insert are O(log n). Updating vruntime and weights is O(1) per container. Thus each scheduling decision is O(log n) time (dominated by queue operations), and overall space is O(n) to store container states. Tracking CPU usage by reading /proc or cgroup stats adds an O(n) scan (once per interval), still O(n) total. Hence DWFS is efficient: in practice for typical n the overhead is low and matches known fair schedulers. 
+
+
+`2. Layered Union Filesystem (LUFS) with Copy-on-Write`
+
+This algorithm allows multiple containers to share a single, read-only base filesystem while maintaining their own isolated writable layers. When a container modifies or deletes a file, the LUFS algorithm intelligently copies only that specific file into the container’s private layer or creates a “whiteout” marker to hide it, ensuring changes never affect the shared base. This design mimics how Docker’s OverlayFS operates internally and greatly improves storage efficiency, startup speed, and modularity. By integrating LUFS into the container runtime, the project introduces a more advanced filesystem management mechanism that supports scalability, efficient resource use, and realistic container behavior,all while preserving strong isolation between environments.
