@@ -1,9 +1,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
-using namespace std;
+#include "container.cpp"
 
-int run_program(const string& program_path, const vector<string>& program_args, bool interactive);
+using namespace std;
 
 static void usage(const char* exe) {
     cerr << "Usage:\n"
@@ -42,5 +42,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    return run_program(program_path, program_args, interactive);
+    Container container;
+    return container.runProgram(program_path, program_args, interactive);
 }

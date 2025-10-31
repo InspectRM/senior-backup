@@ -8,43 +8,43 @@
 #include <cstdio>
 #include <cstring>
 
-int nm_make_mounts_private();
-int nm_enter_new_namespaces();
-int nm_chroot_into(const char* new_root);
-int nm_mount_minimal();
-int nm_set_hostname(const char* name);
+using namespace std;
 
-int nm_make_mounts_private() {
-    if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) != 0) {
-        perror("MS_PRIVATE");
-        return -1;
+// Base class for namespace operations
+class NamespaceManager {
+private:
+    int makePrivateMounts() {
+        if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) != 0) {
+            perror("MS_PRIVATE");
+            return -1;
+        }
+        return 0;
     }
-    return 0;
-}
+    
+public:
+    int enterNewNamespaces() {
+        if (makePrivateMounts() != 0) return -1;
+        int flags = CLONE_NEWUTS | CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWPID | CLONE_NEWNET;
+        if (unshare(flags) != 0) { perror("unshare"); return -1; }
+        return 0;
+    }
 
-int nm_enter_new_namespaces() {
-    if (nm_make_mounts_private() != 0) return -1;
-    int flags = CLONE_NEWUTS | CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWPID | CLONE_NEWNET;
-    if (unshare(flags) != 0) { perror("unshare"); return -1; }
-    return 0;
-}
+    int chrootInto(const char* new_root) {
+        if (chdir(new_root) != 0) { perror("chdir new_root"); return -1; }
+        if (chroot(".") != 0)     { perror("chroot");         return -1; }
+        if (chdir("/") != 0)      { perror("chdir /");        return -1; }
+        return 0;
+    }
 
-int nm_chroot_into(const char* new_root) {
-    if (chdir(new_root) != 0) { perror("chdir new_root"); return -1; }
-    if (chroot(".") != 0)     { perror("chroot");         return -1; }
-    if (chdir("/") != 0)      { perror("chdir /");        return -1; }
-    return 0;
-}
-
-int nm_mount_minimal() {
-    mkdir("/proc", 0555);
-    if (mount("proc", "/proc", "proc", 0, nullptr) != 0) { perror("mount /proc"); return -1; }
-    mkdir("/dev", 0755);
-    if (mount("tmpfs", "/dev", "tmpfs", MS_NOSUID|MS_STRICTATIME, "mode=755") != 0) { perror("mount /dev"); return -1; }
-    mkdir("/tmp", 01777);
-    if (mount("tmpfs", "/tmp", "tmpfs", MS_STRICTATIME, "mode=1777") != 0) { perror("mount /tmp"); return -1; }
-    return 0;
-}
+    int mountMinimal() {
+        mkdir("/proc", 0555);
+        if (mount("proc", "/proc", "proc", 0, nullptr) != 0) { perror("mount /proc"); return -1; }
+        mkdir("/dev", 0755);
+        if (mount("tmpfs", "/dev", "tmpfs", MS_NOSUID|MS_STRICTATIME, "mode=755") != 0) { perror("mount /dev"); return -1; }
+        mkdir("/tmp", 01777);
+        if (mount("tmpfs", "/tmp", "tmpfs", MS_STRICTATIME, "mode=1777") != 0) { perror("mount /tmp"); return -1; }
+        return 0;
+    }
     //in linux : 
     // 0555 permissions (octal):
     // Special flags: 0  -> none
@@ -53,12 +53,13 @@ int nm_mount_minimal() {
     // Others:       5  -> r-x
 
     // 01777 permissions (octal):
-    // Special flags: 1  -> sticky bit (users can’t delete others’ files)
+    // Special flags: 1  -> sticky bit (users can't delete others' files)
     // Owner:        7  -> rwx
     // Group:        7  -> rwx
     // Others:       7  -> rwx
 
-int nm_set_hostname(const char* name) {
-    if (sethostname(name, (size_t)strlen(name)) != 0) { perror("sethostname"); return -1; }
-    return 0;
-}
+    int setHostname(const char* name) {
+        if (sethostname(name, (size_t)strlen(name)) != 0) { perror("sethostname"); return -1; }
+        return 0;
+    }
+};
