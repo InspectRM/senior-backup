@@ -1,11 +1,14 @@
 #include "host_filesystem.cpp"
+#include "network_manager.cpp"
 
 using namespace std;
 
+// Class for managing container operations
 class Container {
 private:
     FileSystemBase* hostFs;  // POLYMORPHIC POINTER!
     NamespaceManager nsManager;
+    NetworkManager netManager;  // Network support!
     
     static const char* HOST_CONTAINERS_DIR;
     static const char* HOST_BASE_ROOTFS;
@@ -36,23 +39,31 @@ private:
         return 0;
     }
 
-    bool createRunDirsAndCopyBase(const string& program_path, string& run_id, 
-                                   string& run_dir, string& rootfs_dir) {
+    bool createRunDirsAndSetupOverlay(const string& program_path, string& run_id, 
+                                       string& run_dir, string& rootfs_dir) {
         string name = hostFs->fileName(program_path);
         run_id     = name + "_" + to_string(getpid());
         run_dir    = string(HOST_CONTAINERS_DIR) + "/" + run_id;
-        rootfs_dir = run_dir + "/rootfs";
 
-        cout << "[+] Creating container " << run_id << " ...\n";
-        hostFs->mkdirP(rootfs_dir);
+        cout << "[+] Creating container " << run_id << " with overlay filesystem...\n";
+        hostFs->mkdirP(run_dir);
 
-        cout << "[+] Copying base rootfs (may take a moment)...\n";
-        try {
-            hostFs->shell("cp -a '" + string(HOST_BASE_ROOTFS) + "/.' '" + rootfs_dir + "'");
-        } catch (const exception& e) {
-            cerr << "[!] copy base rootfs failed: " << e.what() << "\n";
+        // Setup overlay filesystem (Copy-on-Write!)
+        if (overlayMgr.setupOverlay(HOST_BASE_ROOTFS, run_dir) != 0) {
+            cerr << "[!] Failed to setup overlay filesystem\n";
             return false;
         }
+        
+        // Mount the overlay
+        if (overlayMgr.mountOverlay() != 0) {
+            cerr << "[!] Failed to mount overlay filesystem\n";
+            return false;
+        }
+        
+        // Use the merged directory as rootfs
+        rootfs_dir = overlayMgr.getMergedDir();
+        
+        cout << "[+] Container filesystem ready (using overlay - instant creation!)\n";
         return true;
     }
 
@@ -92,7 +103,7 @@ private:
         argv_cstrings.push_back(nullptr);
     }
 
-    int runAndWait(const string& rootfs_dir, const vector<char*>& argv_cstrings, bool interactive) {
+    int runAndWait(const string& rootfs_dir, const vector<char*>& argv_cstrings, bool interactive, bool enableNetwork) {
         pid_t child = fork();
         if (child < 0) { perror("fork"); return 1; }
 
@@ -103,9 +114,19 @@ private:
             if (init_pid < 0) { perror("fork"); _exit(1); }
 
             if (init_pid == 0) {
+                // Give parent time to set up networking
+                if (enableNetwork) {
+                    sleep(1);
+                }
+                
                 if (nsManager.chrootInto(rootfs_dir.c_str()) != 0) { cerr << "[!] chroot failed\n"; _exit(1); }
                 if (nsManager.mountMinimal() != 0)                 { cerr << "[!] mount failed\n"; _exit(1); }
                 nsManager.setHostname("mini-container");
+
+                // Configure container network if enabled
+                if (enableNetwork) {
+                    netManager.setupContainerSide();
+                }
 
                 if (interactive) {
                     cout << "[+] Entering interactive container shell...\n";
@@ -123,6 +144,32 @@ private:
             }
         }
 
+        // Parent process: Set up networking for child
+        if (enableNetwork) {
+            cout << "[+] Setting up container networking...\n";
+            
+            // Create veth pair
+            if (netManager.createVethPair() != 0) {
+                cerr << "[!] Failed to create network, continuing without networking\n";
+            }
+            else {
+                // Move one end into container
+                if (netManager.moveVethToContainer(child) != 0) {
+                    cerr << "[!] Failed to move veth to container\n";
+                }
+                else {
+                    // Configure host side
+                    if (netManager.setupHostSide() != 0) {
+                        cerr << "[!] Failed to configure host network\n";
+                    }
+                    else {
+                        // Enable internet access (NAT)
+                        netManager.enableInternetAccess();
+                    }
+                }
+            }
+        }
+
         int st = 0; waitpid(child, &st, 0);
         return (WIFEXITED(st) && WEXITSTATUS(st) == 0) ? 0 : 1;
     }
@@ -133,21 +180,25 @@ private:
         hostFs->tryUmount(rootfs_dir + "/dev");
         hostFs->tryUmount(rootfs_dir + "/tmp");
         hostFs->rmRf(run_dir);
+        
+        // Cleanup network
+        netManager.cleanup();
+        
         cout << "[✓] Done.\n";
     }
 
 public:
     // Constructor with polymorphism support
     Container() {
-        hostFs = new HostFileSystem();  
+        hostFs = new HostFileSystem();  // Create concrete implementation
     }
     
-    // Destructor
+    // Destructor to clean up
     ~Container() {
         delete hostFs;
     }
     
-    int runProgram(const string& program_path, const vector<string>& program_args, bool interactive) {
+    int runProgram(const string& program_path, const vector<string>& program_args, bool interactive, bool enableNetwork = false) {
         if (geteuid() != 0) { cerr << "[!] run as root (sudo)\n"; return 1; }
         if (ensureBaseRootfs() != 0) return 1;
 
@@ -168,7 +219,7 @@ public:
         vector<char*>  argv_cstrings;
         buildExecArgv(program_inside, program_args, argv_strings, argv_cstrings);
 
-        int rc = runAndWait(rootfs_dir, argv_cstrings, interactive);
+        int rc = runAndWait(rootfs_dir, argv_cstrings, interactive, enableNetwork);
         //comign back later experimenting /bin/bash
         cleanupRunDir(rootfs_dir, run_dir);
         return rc;
