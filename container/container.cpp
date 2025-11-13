@@ -1,14 +1,14 @@
 #include "host_filesystem.cpp"
-#include "network_manager.cpp"
+#include "overlay_manager.cpp"
 
 using namespace std;
 
 // Class for managing container operations
 class Container {
 private:
-    FileSystemBase* hostFs;  // POLYMORPHIC POINTER!
+    FileSystemBase* hostFs;
     NamespaceManager nsManager;
-    NetworkManager netManager;  // Network support!
+    OverlayManager overlayMgr;  
     
     static const char* HOST_CONTAINERS_DIR;
     static const char* HOST_BASE_ROOTFS;
@@ -48,19 +48,16 @@ private:
         cout << "[+] Creating container " << run_id << " with overlay filesystem...\n";
         hostFs->mkdirP(run_dir);
 
-        // Setup overlay filesystem (Copy-on-Write!)
         if (overlayMgr.setupOverlay(HOST_BASE_ROOTFS, run_dir) != 0) {
             cerr << "[!] Failed to setup overlay filesystem\n";
             return false;
         }
         
-        // Mount the overlay
         if (overlayMgr.mountOverlay() != 0) {
             cerr << "[!] Failed to mount overlay filesystem\n";
             return false;
         }
         
-        // Use the merged directory as rootfs
         rootfs_dir = overlayMgr.getMergedDir();
         
         cout << "[+] Container filesystem ready (using overlay - instant creation!)\n";
@@ -103,7 +100,7 @@ private:
         argv_cstrings.push_back(nullptr);
     }
 
-    int runAndWait(const string& rootfs_dir, const vector<char*>& argv_cstrings, bool interactive, bool enableNetwork) {
+    int runAndWait(const string& rootfs_dir, const vector<char*>& argv_cstrings, bool interactive) {
         pid_t child = fork();
         if (child < 0) { perror("fork"); return 1; }
 
@@ -114,19 +111,9 @@ private:
             if (init_pid < 0) { perror("fork"); _exit(1); }
 
             if (init_pid == 0) {
-                // Give parent time to set up networking
-                if (enableNetwork) {
-                    sleep(1);
-                }
-                
                 if (nsManager.chrootInto(rootfs_dir.c_str()) != 0) { cerr << "[!] chroot failed\n"; _exit(1); }
                 if (nsManager.mountMinimal() != 0)                 { cerr << "[!] mount failed\n"; _exit(1); }
                 nsManager.setHostname("mini-container");
-
-                // Configure container network if enabled
-                if (enableNetwork) {
-                    netManager.setupContainerSide();
-                }
 
                 if (interactive) {
                     cout << "[+] Entering interactive container shell...\n";
@@ -144,66 +131,44 @@ private:
             }
         }
 
-        // Parent process: Set up networking for child
-        if (enableNetwork) {
-            cout << "[+] Setting up container networking...\n";
-            
-            // Create veth pair
-            if (netManager.createVethPair() != 0) {
-                cerr << "[!] Failed to create network, continuing without networking\n";
-            }
-            else {
-                // Move one end into container
-                if (netManager.moveVethToContainer(child) != 0) {
-                    cerr << "[!] Failed to move veth to container\n";
-                }
-                else {
-                    // Configure host side
-                    if (netManager.setupHostSide() != 0) {
-                        cerr << "[!] Failed to configure host network\n";
-                    }
-                    else {
-                        // Enable internet access (NAT)
-                        netManager.enableInternetAccess();
-                    }
-                }
-            }
-        }
-
         int st = 0; waitpid(child, &st, 0);
         return (WIFEXITED(st) && WEXITSTATUS(st) == 0) ? 0 : 1;
     }
 
     void cleanupRunDir(const string& rootfs_dir, const string& run_dir) {
         cout << "[+] Cleaning up...\n";
+        
+        overlayMgr.showStats();
+
         hostFs->tryUmount(rootfs_dir + "/proc");
         hostFs->tryUmount(rootfs_dir + "/dev");
         hostFs->tryUmount(rootfs_dir + "/tmp");
-        hostFs->rmRf(run_dir);
         
-        // Cleanup network
-        netManager.cleanup();
+        // Unmount 
+        overlayMgr.unmountOverlay();
+        overlayMgr.cleanup();
+        
+        // Remove container directory
+        hostFs->rmRf(run_dir);
         
         cout << "[✓] Done.\n";
     }
 
 public:
-    // Constructor with polymorphism support
     Container() {
-        hostFs = new HostFileSystem();  // Create concrete implementation
+        hostFs = new HostFileSystem();  
     }
     
-    // Destructor to clean up
     ~Container() {
         delete hostFs;
     }
     
-    int runProgram(const string& program_path, const vector<string>& program_args, bool interactive, bool enableNetwork = false) {
+    int runProgram(const string& program_path, const vector<string>& program_args, bool interactive) {
         if (geteuid() != 0) { cerr << "[!] run as root (sudo)\n"; return 1; }
         if (ensureBaseRootfs() != 0) return 1;
 
         string run_id, run_dir, rootfs_dir;
-        if (!createRunDirsAndCopyBase(program_path, run_id, run_dir, rootfs_dir)) return 1;
+        if (!createRunDirsAndSetupOverlay(program_path, run_id, run_dir, rootfs_dir)) return 1;
 
         string program_inside;
         if (!copyProgramIntoRootfs(program_path, rootfs_dir, program_inside)) {
@@ -219,13 +184,12 @@ public:
         vector<char*>  argv_cstrings;
         buildExecArgv(program_inside, program_args, argv_strings, argv_cstrings);
 
-        int rc = runAndWait(rootfs_dir, argv_cstrings, interactive, enableNetwork);
+        int rc = runAndWait(rootfs_dir, argv_cstrings, interactive);
         //comign back later experimenting /bin/bash
         cleanupRunDir(rootfs_dir, run_dir);
         return rc;
     }
 };
 
-// Initialize static members
 const char* Container::HOST_CONTAINERS_DIR = "/containers";
 const char* Container::HOST_BASE_ROOTFS    = "/containers/base_rootfs";
