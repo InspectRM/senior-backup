@@ -16,17 +16,41 @@ public:
         vethContainer = "veth_c" + to_string(getpid());
     }
     
-    Create virtual ethernet pair
-    void createVethPair() {
+    int createVethPair() {
         string cmd = "ip link add " + vethHost + " type veth peer name " + vethContainer;
-        system(cmd.c_str());
-        cout << "[+] Created network pair\n";
+        if (system(cmd.c_str()) != 0) {
+            cerr << "[!] Failed to create veth pair\n";
+            return -1;
+        }
+        cout << "[+] Created veth pair: " << vethHost << " <-> " << vethContainer << "\n";
+        return 0;
     }
     
-    void moveToContainer(pid_t containerPid) {
+    int moveVethToContainer(pid_t containerPid) {
         string cmd = "ip link set " + vethContainer + " netns " + to_string(containerPid);
-        system(cmd.c_str());
-        cout << "[+] Moved interface to container\n";
+        if (system(cmd.c_str()) != 0) {
+            cerr << "[!] Failed to move veth to container\n";
+            return -1;
+        }
+        cout << "[+] Moved " << vethContainer << " into container namespace\n";
+        return 0;
+    }
+    
+    int setupHostSide() {
+        string cmd1 = "ip addr add " + hostIP + "/24 dev " + vethHost;
+        if (system(cmd1.c_str()) != 0) {
+            cerr << "[!] Failed to set host IP\n";
+            return -1;
+        }
+        
+        string cmd2 = "ip link set " + vethHost + " up";
+        if (system(cmd2.c_str()) != 0) {
+            cerr << "[!] Failed to bring up host interface\n";
+            return -1;
+        }
+        
+        cout << "[+] Configured host interface " << vethHost << " (" << hostIP << ")\n";
+        return 0;
     }
     
     void setupHostSide() {
